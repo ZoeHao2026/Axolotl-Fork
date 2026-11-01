@@ -22,7 +22,9 @@
 
 ## 3. 提交（commit）
 
-- **信息格式**：一律 [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)，类型、作用域与 `!`/`BREAKING CHANGE:` 的用法见 [AGENTS.md](AGENTS.md) 的 "Verification and Commits"。本文件不重复该表。
+- **信息格式**：一律 [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)，即 `<type>[optional scope][!]: <description>`。该规则同样适用于 amend、merge、squash 与 revert 提交；必要时重写 Git 的默认信息，但**不要**为了让历史"规范"而改写已推送的提交。
+- **类型**：使用与改动相符的小写类型——`feat`、`fix`、`docs`、`refactor`、`perf`、`test`、`build`、`ci`、`chore`、`style`、`revert`。作用域可选且应简洁（例如 `app`、`website`、`ui`、`agents`），描述实际改动。破坏性改动用 `!` 或 `BREAKING CHANGE:` 尾注标记，并在正文说明影响。
+- **消息规范不等于实施授权**：本节只规定提交信息怎么写，不构成创建提交或改写历史的许可。创建提交前先确认最终信息本身正确。
 - **正文写"为什么"**：说明动机、被修正的错误认知、以及取舍理由。不要写"改了 A、改了 B"式的流水账——那是 `git show` 的职责。
 - **提交前必跑该文件类型所属的门禁**，而不是笼统地跑一遍：
   - 改 TOML（`Cargo.toml`、`.cargo/config.toml`、`tombi.toml` 等）→ `tombi fmt --check`（仓库有该门禁，且它红掉的是**所有**分支）。
@@ -31,7 +33,7 @@
   - 改 Agent 指令或技能 → `pnpm axolotl:check-agents`。
 - **只暂存自己的路径**：用 `git add <具体路径>`。当工作区内可能有其他 Agent 或用户的同时改动时，**严禁** `git add -A`/`git add .`；提交前用 `git show --name-only HEAD` 核对实际入库文件与预期一致。
 - **一个提交只做一件事**；文档改动与代码改动分开；**不为规范化历史而改写已推送的提交**。
-- **`[skip ci]`**：仅用于**不影响桌面端**（`apps/app/`、`apps/app-frontend/` 及其构建、打包、运行时、专属依赖）的提交，且要接在 conventional 前缀之后，例如 `docs(agents): … [skip ci]`。桌面端相关提交**永不**使用。
+- **`[skip ci]`**：仅用于**不影响桌面端**（`apps/app/`、`apps/app-frontend/` 及其构建、打包、运行时、专属依赖）的提交，且要接在 conventional 前缀之后，例如 `docs(agents): clarify repository instructions [skip ci]`。桌面端相关提交**永不**使用。
 - 提交前确认工作树中**没有**他人的在途改动被卷入；发现被卷入时先停下询问，不要替他人决定。
 
 ## 4. 尾签（trailers）
@@ -55,8 +57,9 @@
 前置条件（**缺一不可**）：
 
 1. 工作树干净，且只含本次要推送的提交；
-2. 相关门禁已跑过且通过（第 3 节）；
-3. 已只读核实目标状态：远端当前 tip、本次提交与远端的关系。
+2. 已逐条核对改动路径，再据此判断每条提交能否带 `[skip ci]`（规则见第 3 节）；
+3. 相关门禁已跑过且通过（第 3 节）；
+4. 已只读核实目标状态：远端当前 tip、本次提交与远端的关系。
 
 流程：
 

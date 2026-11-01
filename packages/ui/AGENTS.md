@@ -1,4 +1,4 @@
-# Architecture
+# Shared UI
 
 The shared UI package used by both `apps/website` (Nuxt 3) and `apps/app-frontend` (Vue 3 + Tauri). Components here must be platform-agnostic — use dependency injection for platform-specific behavior.
 
@@ -29,60 +29,30 @@ Self-contained page layouts, currently all consumed by the desktop application:
 
 Files inside `layouts/` use the `#ui/*` import alias (resolved via the `"imports"` field in `package.json`) to reference other `src/` modules like `#ui/components/base/buttons/Button.vue` or `#ui/composables/i18n`.
 
-### Platform independence
+## Rules
 
-Components here must stay platform-agnostic: platform capabilities arrive through the `providers/` DI contracts. Importing `@tauri-apps/*` from this package is blocked by ESLint, because the Nuxt website consumes it too and has no Tauri runtime.
+- **Stay platform-agnostic.** Platform capabilities arrive through the `providers/` DI contracts. Importing `@tauri-apps/*` from this package is blocked by ESLint, because the Nuxt website consumes it too and has no Tauri runtime.
+- Define DI contracts with `createContext` from `src/providers/index.ts`. Read the [dependency injection standard](../../standards/frontend/DEPENDENCY_INJECTION.md) before adding or changing one. Key providers exported here: `provideModrinthClient` / `injectModrinthClient` (API client) and `provideNotificationManager` / `injectNotificationManager` (notifications).
+- Use `surface-*` variables for backgrounds and strokes and take colours from the [styling standard](../../standards/frontend/STYLING.md); the [surface standard](../../standards/frontend/SURFACE_SYSTEM.md) is authoritative for elevation and separators.
+- Never use newline-separated statements in a Vue template event handler such as `@click`. Vue's template compiler cannot parse expressions separated only by newlines; always use semicolons on one line:
 
-# Code Guidelines
+  ```vue
+  <!-- BAD: will cause "Unexpected token" parse error -->
+  @click=" foo = true $emit('bar') "
 
-### Tailwind Configuration
+  <!-- GOOD -->
+  @click="foo = true; $emit('bar')"
+  ```
 
-All frontend packages share a Tailwind preset at `packages/tooling-config/tailwind/tailwind-preset.ts`. This package's `tailwind.config.ts` extends it:
+## Verification
 
-```ts
-import preset from '@modrinth/tooling-config/tailwind/tailwind-preset.ts'
-```
+- `pnpm --filter @modrinth/ui lint` for eslint and formatting; `pnpm --filter @modrinth/ui fix` to write it.
+- `pnpm --filter @modrinth/ui test` for the unit suite plus the visual specs. Say which of the two a change was validated with.
 
-CSS custom properties are defined in `packages/assets/styles/variables.scss` with light, dark, and OLED theme variants.
+## Reference
 
-### Color Usage Rules
-
-Use `surface-*` variables for backgrounds and strokes. The [surface standard](../../standards/frontend/SURFACE_SYSTEM.md) is authoritative for elevation and separators, including ordinary cards, cards on panels, table rows and stronger outlines. Follow the [frontend development standard](../../standards/frontend/DEVELOPMENT.md) for utility classes, validation and commit-time formatting.
-
-**For text colors:**
-
-| Class                               | Usage                            |
-| ----------------------------------- | -------------------------------- |
-| `text-[var(--color-text-primary)]`  | Primary headings                 |
-| `text-[var(--color-text-default)]`  | Default body text                |
-| `text-[var(--color-text-tertiary)]` | Reduced emphasis, secondary info |
-
-**Brand and semantic colors** not all exposed as Figma variables — refer to `packages/assets/styles/variables.scss` for the full set:
-
-- `bg-{color}`, `text-{color}` etc. — Primary brand colors
-- `bg-{color}-highlight` — 25% opacity semantic highlights
-
-**Color palette** (each with shades 50–950): red, orange, green, blue, purple, gray. Platform-specific colors also exist (fabric, forge, quilt, neoforge, etc.).
-
-## Dependency Injection
-
-This package defines the DI layer using `createContext` from `src/providers/index.ts`. Read the [dependency injection standard](../../standards/frontend/DEPENDENCY_INJECTION.md) before adding or changing a contract.
-
-Key providers exported from this package:
-
-- `provideModrinthClient` / `injectModrinthClient` — API client
-- `provideNotificationManager` / `injectNotificationManager` — Notifications
-
-## Vue Template Rules
-
-### Multi-statement event handlers
-
-Never use newline-separated statements in Vue template event handlers like `@click`. Vue's template compiler cannot parse multi-line expressions separated only by newlines. Always use semicolons on a single line:
-
-```vue
-<!-- BAD: will cause "Unexpected token" parse error -->
-@click=" foo = true $emit('bar') "
-
-<!-- GOOD -->
-@click="foo = true; $emit('bar')"
-```
+- [Styling](../../standards/frontend/STYLING.md)
+- [Surface system](../../standards/frontend/SURFACE_SYSTEM.md)
+- [Dependency injection](../../standards/frontend/DEPENDENCY_INJECTION.md)
+- [Modals](../../standards/frontend/MODALS.md)
+- [Internationalization](../../standards/frontend/INTERNATIONALIZATION.md)

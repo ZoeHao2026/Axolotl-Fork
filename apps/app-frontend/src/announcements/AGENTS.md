@@ -2,6 +2,12 @@
 
 Launcher release announcements are bundled with `apps/app-frontend` and shown after a completed app update and in Settings > Updates.
 
+## Before you change it
+
+- Read the [changelog style standard](../../../../standards/maintaining/CHANGELOG.md) for how a requested release note is written and reviewed.
+
+## Rules
+
 - Add ordinary release announcements only to `apps/app-frontend/src/announcements/catalog.ts`; adding an entry must not require changes to `App.vue`, the updater, or the announcement components.
 - Do not edit the announcement catalog unless the user explicitly asks for an update log.
 - Ask the user for the exact launcher version before writing the announcement unless they already provided it. Use that version exactly; do not query the remote or infer a version from local metadata to choose one automatically.
@@ -12,7 +18,15 @@ Launcher release announcements are bundled with `apps/app-frontend` and shown af
 - Keep entries concise and user-facing. Describe observable features, behavior changes, removals, fixes, and security impact rather than implementation details.
 - `pending_update_toast_for_version` is the persisted trigger for the post-update announcement. Do not add separate per-release startup checks or clear it before the announcement closes.
 - Preserve startup dialog priority: initialization errors, first-run onboarding, post-update announcement, then community announcement. A replayed onboarding tour must not consume a pending post-update announcement.
-- If the announcement schema, categories, fallback behavior, or dialog priority changes, update the catalog types, both announcement display surfaces, and this instruction file together.
 - Keep launcher release notes exclusively in the catalog. Do not create or maintain a separate `UPDATE_LOG.md` file.
 - The GitHub release workflow generates its release body from the matching catalog entry with `scripts/axolotl/create-release-notes.mjs`; a release tag without a catalog entry must fail preflight.
 - Local development builds expose a preview button in Settings > Updates. Use it to test the real announcement modal without changing onboarding or pending-update state; do not add per-version preview branches.
+
+## When the format itself changes
+
+If the announcement schema, categories, fallback behavior, or dialog priority changes, update the catalog types, both announcement display surfaces, and this instruction file together.
+
+## Verification
+
+- `node --test scripts/axolotl/create-release-notes.test.mjs` after changing the catalog or the release-note generator.
+- `pnpm --filter @modrinth/app-frontend test` when a display surface or the modal changed.
