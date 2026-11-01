@@ -17,10 +17,10 @@ import { createSkinEditorTheme } from '@/components/lab/skin-editor/skin-editor-
 import SkinEditorRecoveryModal from '@/components/lab/skin-editor/SkinEditorRecoveryModal.vue'
 import SkinEditorSettingsModal from '@/components/lab/skin-editor/SkinEditorSettingsModal.vue'
 import SkinEditorUnsavedChangesModal from '@/components/lab/skin-editor/SkinEditorUnsavedChangesModal.vue'
+import { writeExportedSkin } from '@/lab/skin-editor/export-skin'
 import {
     createSkinEditorRequestId,
     loadSkinEditorPreferences,
-    normalizeExportFilename,
     parseSkinEditorMessage,
     saveSkinEditorPreferences,
     shouldPromptBeforeLeave,
@@ -233,19 +233,6 @@ function acknowledgeExportRequest(requestId: string) {
     resolver.timeout = undefined
 }
 
-async function writeExportedSkin(name: string, dataUrl: string): Promise<boolean> {
-    const path = await save({
-        defaultPath: normalizeExportFilename(name),
-        filters: [{ name: formatMessage(messages.exportSkin), extensions: ['png'] }],
-    })
-    if (!path) return false
-
-    const response = await fetch(dataUrl)
-    if (!response.ok) throw new Error(`Failed to read exported skin: ${response.status}`)
-    await writeFile(path, new Uint8Array(await response.arrayBuffer()))
-    return true
-}
-
 async function handleExportRequest(
     message: Extract<SkinEditorEditorMessage, { type: 'axolotl-skin-export-request' }>,
 ) {
@@ -264,24 +251,49 @@ async function handleExportRequest(
     }
 
     saveInProgress.value = true
-    let saved = false
     try {
         acknowledgeExportRequest(message.requestId)
-        postToEditor({
-            type: 'axolotl-skin-export-accepted',
-            requestId: message.requestId,
-            accepted: true,
-        })
-        saved = await writeExportedSkin(message.name, message.dataUrl)
+        // The editor shows the save as successful when it receives
+        // `accepted: true`, so the helper sends it only after the file was
+        // actually written; a cancelled dialog reports a failure instead (#877).
+        await writeExportedSkin(
+            message,
+            {
+                choosePath: (defaultName) =>
+                    save({
+                        defaultPath: defaultName,
+                        filters: [
+                            { name: formatMessage(messages.exportSkin), extensions: ['png'] },
+                        ],
+                    }),
+                readDataUrl: async (dataUrl) => {
+                    const response = await fetch(dataUrl)
+                    if (!response.ok) {
+                        throw new Error(`Failed to read exported skin: ${response.status}`)
+                    }
+                    return new Uint8Array(await response.arrayBuffer())
+                },
+                writeFile: (path, data) => writeFile(path, data),
+            },
+            {
+                accepted: (accepted) =>
+                    postToEditor({
+                        type: 'axolotl-skin-export-accepted',
+                        requestId: message.requestId,
+                        accepted,
+                    }),
+                result: (saved) =>
+                    postToEditor({
+                        type: 'axolotl-skin-export-result',
+                        requestId: message.requestId,
+                        saved,
+                    }),
+            },
+        )
     } catch (error) {
         handleError(error)
     } finally {
         saveInProgress.value = false
-        postToEditor({
-            type: 'axolotl-skin-export-result',
-            requestId: message.requestId,
-            saved,
-        })
     }
 }
 
