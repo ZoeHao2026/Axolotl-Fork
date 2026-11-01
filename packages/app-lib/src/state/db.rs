@@ -579,7 +579,43 @@ fn sidecar_path(path: &Path, suffix: &str) -> PathBuf {
     PathBuf::from(path)
 }
 
+/// An app database this large is a defect, not a working state.
+///
+/// Every table the launcher owns together stays comfortably under a hundred
+/// megabytes; the databases that reach this size are the ones a runaway writer
+/// inflated table by table. Opening one is slow — the pool walks the WAL and
+/// the migration bookkeeping before the first query answers — and because that
+/// happens between two log lines, the wait reads as a hang with no explanation.
+/// Naming the size, the write-ahead log and the path is what turns that silence
+/// into something a bug report can act on.
+const OVERSIZED_APP_DB_BYTES: u64 = 256 * 1024 * 1024;
+
+fn is_oversized_app_db(database_bytes: u64, wal_bytes: u64) -> bool {
+    database_bytes >= OVERSIZED_APP_DB_BYTES
+        || wal_bytes >= OVERSIZED_APP_DB_BYTES
+}
+
+async fn report_oversized_app_db(db_path: &Path) {
+    let Ok(metadata) = tokio::fs::metadata(db_path).await else {
+        return;
+    };
+    let wal_bytes = tokio::fs::metadata(sidecar_path(db_path, "-wal"))
+        .await
+        .map(|wal| wal.len())
+        .unwrap_or(0);
+    if !is_oversized_app_db(metadata.len(), wal_bytes) {
+        return;
+    }
+    tracing::warn!(
+        database = %db_path.display(),
+        database_bytes = metadata.len(),
+        wal_bytes,
+        "The app database is far larger than the launcher's own tables need; opening it and applying migrations can take a long time. This is a defect: report it with these numbers so the oversized tables can be identified."
+    );
+}
+
 async fn connect_app_db(db_path: &Path) -> crate::Result<Pool<Sqlite>> {
+    report_oversized_app_db(db_path).await;
     super::db_backup::prepare_app_db(db_path).await?;
     // A backup that cannot be written is a reason to say so, not a reason to
     // leave the user without a launcher: the migrations that follow are the
@@ -1734,6 +1770,26 @@ async fn stale_data_cleanup(pool: &Pool<Sqlite>) -> crate::Result<()> {
 mod tests {
     use super::*;
     use std::collections::HashSet;
+
+    #[test]
+    fn oversized_app_db_reporting_has_a_threshold_on_both_files() {
+        // The launcher's own tables stay well under the threshold, so a working
+        // database must never draw the warning that a bug report keys off.
+        assert!(!is_oversized_app_db(0, 0));
+        assert!(!is_oversized_app_db(
+            OVERSIZED_APP_DB_BYTES - 1,
+            OVERSIZED_APP_DB_BYTES - 1
+        ));
+
+        // Either file crossing it is the defect: an 11 GiB database whose WAL
+        // was already checkpointed still has to be reported.
+        assert!(is_oversized_app_db(OVERSIZED_APP_DB_BYTES, 0));
+        assert!(is_oversized_app_db(0, OVERSIZED_APP_DB_BYTES));
+        assert!(is_oversized_app_db(
+            10 * 1024 * 1024 * 1024,
+            1024 * 1024 * 1024
+        ));
+    }
 
     #[tokio::test]
     async fn version_backup_precedes_migration_validation_and_survives_an_upgrade_failure()
