@@ -39,6 +39,10 @@ pub struct UpdateMetadata {
     body: Option<String>,
     published_at: Option<String>,
     force_update: bool,
+    /// Whether this installation is one the updater can replace. When it is
+    /// not, the frontend must send the user to their package manager instead of
+    /// downloading an artifact the installer will reject.
+    install_supported: bool,
     raw_json: serde_json::Value,
 }
 
@@ -310,6 +314,7 @@ async fn check_with_updater<R: Runtime>(
         body: update.body.clone(),
         published_at,
         force_update,
+        install_supported: self_update_supported(),
         raw_json: update.raw_json,
     };
 
@@ -516,6 +521,36 @@ pub fn remove_enqueued_update<R: Runtime>(webview: Webview<R>) {
 }
 
 // ── Debian / derivatives apt update ─────────────────────────────
+
+/// Whether this installation is one the updater can replace.
+///
+/// The updater swaps out a packaged artifact: an AppImage, a `.deb` installed
+/// through apt, a macOS bundle or the Windows installer. A binary some package
+/// manager owns — pacman, an AUR helper, rpm/dnf, Nix — is none of those, and
+/// handing its downloaded artifact to the updater fails with "invalid updater
+/// binary format" on every single attempt. Those installations update through
+/// the package manager that installed them.
+pub fn self_update_supported() -> bool {
+    // A development build has no packaged artifact to replace, and the update
+    // server publishes no artifact for it.
+    if cfg!(debug_assertions) {
+        return false;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let running_as_appimage = std::env::var_os("APPIMAGE").is_some();
+        running_as_appimage || is_apt_linux()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        true
+    }
+}
+
+/// What to tell a user whose launcher a package manager owns, so the exit path
+/// and the settings page can say the same thing.
+pub const PACKAGE_MANAGED_UPDATE_HINT: &str = "This Axolotl installation is managed by your system's package manager, so the launcher cannot replace it. Update Axolotl through that package manager.";
 
 /// Whether this Linux system updates Axolotl through apt (Debian and its
 /// derivatives) and has `pkexec` available for a single privileged prompt.

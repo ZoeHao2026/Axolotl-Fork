@@ -1015,7 +1015,15 @@ fn main() {
                         }
 
                         let version = update.version.clone();
-                        let install_result = if is_apt_linux() {
+                        let install_supported = self_update_supported();
+                        let install_result = if !install_supported {
+                            // A session can reach this point with an artifact it
+                            // downloaded before the launcher knew its install
+                            // could not be replaced. Handing that artifact to
+                            // the updater fails with "invalid updater binary
+                            // format", so the last gate refuses here.
+                            Err(PACKAGE_MANAGED_UPDATE_HINT.to_string())
+                        } else if is_apt_linux() {
                             tauri::async_runtime::block_on(
                                 install_apt_package(&version, data),
                             )
@@ -1055,19 +1063,28 @@ fn main() {
                                 }
                             }
                             Err(e) => {
-                                tracing::error!(
-                                    "Pending update install failed (version {}): {e}",
-                                    version
-                                );
+                                if install_supported {
+                                    tracing::error!(
+                                        "Pending update install failed (version {}): {e}",
+                                        version
+                                    );
+                                } else {
+                                    tracing::info!(
+                                        "Skipped installing update {} because this installation is managed by a package manager",
+                                        version
+                                    );
+                                }
                                 set_changelog_toast(None);
 
-                                DialogBuilder::message()
-                                    .set_level(MessageLevel::Error)
-                                    .set_title("Update error")
-                                    .set_text(format!("Failed to install update due to an error:\n{e}"))
-                                    .alert()
-                                    .show()
-                                    .unwrap();
+                                // No dialog belongs here. This runs inside
+                                // `RunEvent::Exit`, after the last window has
+                                // gone: an alert that waits for a click keeps
+                                // the process alive with nothing on screen to
+                                // click, which is what forced users to kill the
+                                // launcher and produced the coredumps. The
+                                // failure is in the log, and the settings page
+                                // reports the same condition before an update is
+                                // downloaded.
                             }
                         }
                     }
