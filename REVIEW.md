@@ -133,12 +133,4 @@ git rev-parse origin/main       # 必须等于本地 HEAD
 
 ## 11. 已确证的工具事实（本仓库）
 
-每条都是本仓库实测得到的、会反复踩到的判据：
-
-- **TOML 表顺序**：`tombi` 管 TOML 格式，表按字母序排列（如 `[env]` 必须在 `[target.*]` 之前）。改任何 TOML 后跑 `tombi fmt --check`。
-- **typos 的排除语义**：判断排除是否生效必须用**不带路径参数**的 `typos`；要按排除规则检查某个路径需加 `--force-exclude`（显式路径会绕过 `extend-exclude`）。
-- **typos 与子模块**：CI 的 `typos` 作业**不拉取子模块**（只有 `cargo-shear` 与 `clippy` 会），因此本地已初始化子模块时，bare `typos` 会在 `third-party/` 下报出与你的改动无关的错。判据只看自己的文件；**不要**为此去改 `_typos.toml` 的排除项。
-- **依赖安装门槛**：[pnpm-workspace.yaml](pnpm-workspace.yaml) 设有 `minimumReleaseAge`，窗口内的新版本会被自家门槛拒绝；规避只能用**请求级** `--config.minimumReleaseAgeExclude`，不得改仓库设置。
-- **turbo 的环境透传**：[turbo.jsonc](turbo.jsonc) 的任务 `env` 是封闭白名单，未声明的变量会被剥离；`RUST_*`、`NEXTEST_*` 等已在列，新增变量需同步声明。
-- **前端视觉门禁**：`test:visual` 的 worker 数与单测超时上限会影响抖动表现；改这两个值时必须以"最慢单条用例实测耗时"为依据，而不是文件总耗时。
-- **门禁脚本自身**：`pnpm axolotl:check-agents` 校验指令与技能的 Markdown 链接与 Skill frontmatter；[scripts/axolotl/check-agents.mjs](scripts/axolotl/check-agents.mjs) 的 `trackedGuidance` 决定哪些文件被校验，新增根级指令文件时要把它纳入。
+工具与环境的实测行为已移入标准：[standards/maintaining/TOOLING_FACTS.md](standards/maintaining/TOOLING_FACTS.md)。遇到格式门禁、`typos`、依赖安装或 turbo 环境变量的问题，先读它，再怀疑自己的改动。

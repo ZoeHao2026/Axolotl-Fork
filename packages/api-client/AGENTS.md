@@ -16,4 +16,4 @@ Platform-agnostic API client for Modrinth's services, used by both the Nuxt webs
 
 [Client reference](../../standards/api-client/CLIENT.md) — request flow, layout, uploads, WebSocket. Read the section you need.
 
-A new endpoint module: follow the [`api-module` skill](../../.agents/skills/api-module/SKILL.md) and the [API module standard](../../standards/frontend/ADDING_API_MODULES.md).
+A new endpoint module: follow the [`api-module` skill](../../.agents/skills/api-module/SKILL.md) and the [module conventions](../../standards/api-client/ADDING_MODULES.md).

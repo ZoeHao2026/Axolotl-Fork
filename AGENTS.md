@@ -44,6 +44,6 @@ Commit format, trailers, `[skip ci]`, push preconditions, pull requests and revi
 Read only what the task touches:
 
 - [Frontend development](standards/frontend/DEVELOPMENT.md), [Styling](standards/frontend/STYLING.md), [Surface system](standards/frontend/SURFACE_SYSTEM.md), [Modals](standards/frontend/MODALS.md)
-- [Dependency injection](standards/frontend/DEPENDENCY_INJECTION.md), [API modules](standards/frontend/ADDING_API_MODULES.md), [Internationalization](standards/frontend/INTERNATIONALIZATION.md), [Figma](standards/frontend/FIGMA_MCP_USAGE.md)
+- [Dependency injection](standards/frontend/DEPENDENCY_INJECTION.md), [API modules](standards/api-client/ADDING_MODULES.md), [Internationalization](standards/frontend/INTERNATIONALIZATION.md), [Figma](standards/frontend/FIGMA_MCP_USAGE.md)
 - [API client](standards/api-client/CLIENT.md), [Persistence](standards/app-lib/PERSISTENCE.md), [Migrations](standards/app-lib/MIGRATIONS.md)
 - [Deep links](standards/DEEP_LINKS.md), [Rust build resources](standards/build/RUST_BUILD_RESOURCES.md), [Changelog style](standards/maintaining/CHANGELOG.md)
