@@ -3,12 +3,55 @@
   "extends": ["//"],
   "tasks": {
     // Running Clippy and tests on a Tauri application requires
-    // the frontend to be built at least once first
+    // the frontend to be built at least once first.
+    // Turborepo only hashes the pnpm dependency graph, so the Cargo workspace
+    // files and sibling crates this shell compiles must be listed explicitly.
+    // `$TURBO_DEFAULT$` already covers this package's own sources and build.rs.
     "lint": {
-      "dependsOn": ["@modrinth/app-frontend#build"]
+      "dependsOn": ["@modrinth/app-frontend#build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/Cargo.toml",
+        "$TURBO_ROOT$/Cargo.lock",
+        "$TURBO_ROOT$/rust-toolchain.toml",
+        "$TURBO_ROOT$/clippy.toml",
+        "$TURBO_ROOT$/rustfmt.toml",
+        "$TURBO_ROOT$/.cargo/config.toml",
+        "$TURBO_ROOT$/packages/*/Cargo.toml",
+        "$TURBO_ROOT$/packages/*/src/**/*.rs",
+        "$TURBO_ROOT$/packages/app-lib/build.rs",
+        "$TURBO_ROOT$/packages/app-lib/build_support/**",
+        "$TURBO_ROOT$/packages/app-lib/src/**",
+        "$TURBO_ROOT$/packages/app-lib/migrations/**",
+        "$TURBO_ROOT$/packages/app-lib/.sqlx/**",
+        "$TURBO_ROOT$/packages/app-lib/java/src/**",
+        "$TURBO_ROOT$/packages/app-lib/java/gradle/**",
+        "$TURBO_ROOT$/packages/app-lib/java/*.kts",
+        "$TURBO_ROOT$/packages/app-lib/java/gradle.properties"
+      ]
     },
     "test": {
-      "dependsOn": ["@modrinth/app-frontend#build"]
+      "dependsOn": ["@modrinth/app-frontend#build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/Cargo.toml",
+        "$TURBO_ROOT$/Cargo.lock",
+        "$TURBO_ROOT$/rust-toolchain.toml",
+        "$TURBO_ROOT$/clippy.toml",
+        "$TURBO_ROOT$/rustfmt.toml",
+        "$TURBO_ROOT$/.cargo/config.toml",
+        "$TURBO_ROOT$/packages/*/Cargo.toml",
+        "$TURBO_ROOT$/packages/*/src/**/*.rs",
+        "$TURBO_ROOT$/packages/app-lib/build.rs",
+        "$TURBO_ROOT$/packages/app-lib/build_support/**",
+        "$TURBO_ROOT$/packages/app-lib/src/**",
+        "$TURBO_ROOT$/packages/app-lib/migrations/**",
+        "$TURBO_ROOT$/packages/app-lib/.sqlx/**",
+        "$TURBO_ROOT$/packages/app-lib/java/src/**",
+        "$TURBO_ROOT$/packages/app-lib/java/gradle/**",
+        "$TURBO_ROOT$/packages/app-lib/java/*.kts",
+        "$TURBO_ROOT$/packages/app-lib/java/gradle.properties"
+      ]
     }
   }
 }
