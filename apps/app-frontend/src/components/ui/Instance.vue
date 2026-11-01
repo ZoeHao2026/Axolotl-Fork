@@ -231,7 +231,7 @@ onUnmounted(() => unlisten())
             <div
                 class="flex h-full min-w-0 flex-col items-start justify-center gap-0.5 font-bold text-[var(--color-text-primary)] leading-normal"
             >
-                <span class="line-clamp-2">{{ instance.name }}</span>
+                <span class="w-full min-w-0 line-clamp-2">{{ instance.name }}</span>
                 <GameDirectoryBadge
                     v-if="showGameDirectory"
                     :directory="gameDirectory"

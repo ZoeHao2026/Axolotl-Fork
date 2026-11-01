@@ -3,10 +3,15 @@ import { expect, it, vi } from 'vitest'
 import { defineComponent, h, ref, Suspense } from 'vue'
 
 import type { GameInstance } from '@/helpers/types'
+import { mountThemed } from '@/test/visual-harness'
 
 import Instance from './Instance.vue'
 
-vi.mock('@/components/ui/InstanceIcon.vue', () => ({ default: { render: () => null } }))
+vi.mock('@/components/ui/InstanceIcon.vue', () => ({
+    default: defineComponent({
+        setup: () => () => h('div', { style: 'width: 48px; height: 48px; flex-shrink: 0' }),
+    }),
+}))
 vi.mock('@/composables/useMinecraftLaunchError', () => ({
     useMinecraftLaunchError: () => vi.fn(),
 }))
@@ -91,5 +96,55 @@ it('shows the game-directory badge only when the shared card opts in', async () 
     } finally {
         hidden.unmount()
         shown.unmount()
+    }
+})
+
+const longUnbrokenName =
+    'DA_optimization_Forge_1.16.5_super_long_pure_english_instance_name_that_should_not_overflow'
+
+const longNamedInstance = {
+    ...instance,
+    name: longUnbrokenName,
+} as GameInstance
+
+it('keeps a long unbroken name inside a constrained compact card', async () => {
+    const host = document.createElement('div')
+    host.style.width = '260px'
+    document.body.appendChild(host)
+    const wrapper = await mountThemed(
+        defineComponent({
+            setup: () => () =>
+                h(Suspense, null, {
+                    default: () =>
+                        h(Instance, { instance: longNamedInstance, playing: false, compact: true }),
+                }),
+        }),
+        {},
+        'dark',
+        { attachTo: host },
+    )
+
+    try {
+        await flushPromises()
+        await new Promise((resolve) => requestAnimationFrame(resolve))
+
+        const card = host.firstElementChild as HTMLElement
+        const title = Array.from(host.querySelectorAll('span')).find(
+            (element) => element.textContent === longUnbrokenName,
+        ) as HTMLElement | undefined
+        expect(title).toBeDefined()
+        if (!card || !title) return
+
+        // The card must not grow or bleed horizontally because of the title.
+        expect(card.scrollWidth).toBeLessThanOrEqual(card.clientWidth)
+        expect(title.getBoundingClientRect().right).toBeLessThanOrEqual(
+            card.getBoundingClientRect().right,
+        )
+        // The name is still too long for the card, so it has to be clamped.
+        expect(title.scrollWidth).toBeGreaterThan(title.clientWidth)
+        expect(getComputedStyle(title).overflow).toBe('hidden')
+    } finally {
+        wrapper.unmount()
+        host.remove()
     }
 })
