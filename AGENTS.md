@@ -10,6 +10,7 @@ Read the applicable instruction files before editing, even when your session sta
 | --------------------------------------------------------------- | -------------------------------------------------------------- |
 | Desktop frontend, routes, providers, settings                   | [apps/app-frontend/AGENTS.md](apps/app-frontend/AGENTS.md)     |
 | Desktop shell, native IPC commands/callers, build and packaging | [apps/app/AGENTS.md](apps/app/AGENTS.md)                       |
+| Windows installer UI (`apps/installer-ui/`)                     | [apps/app/AGENTS.md](apps/app/AGENTS.md)                       |
 | Website                                                         | [apps/website/AGENTS.md](apps/website/AGENTS.md)               |
 | Shared UI, layouts and DI contracts                             | [packages/ui/AGENTS.md](packages/ui/AGENTS.md)                 |
 | API client                                                      | [packages/api-client/AGENTS.md](packages/api-client/AGENTS.md) |
@@ -21,13 +22,19 @@ Read the applicable instruction files before editing, even when your session sta
 ## Repository Map
 
 - `apps/app-frontend`: desktop Vue frontend; `apps/app`: Tauri shell; `apps/website`: official website.
+- `apps/installer-ui`: Windows-only installer UI, a standalone Rust binary that renders `src/installer.html`; desktop CI compiles it and runs a real uninstall smoke test against it.
+- `apps/telemetry-worker`, `apps/telemetry-dashboard`: Cloudflare telemetry ingestion and its dashboard, each deployed by its own workflow.
 - `packages/ui`, `assets`, `utils`: shared components, theme assets and utilities.
 - `packages/api-client`: public content-service API client; `packages/app-lib`: desktop runtime library.
 - `packages/content-management`: provider-neutral resource and installation models.
+- `packages/server`: dedicated-server config schemas, manifest types and download resolution shared by the app and the CLI.
 - `packages/daedalus`, `ariadne`, `async-minecraft-ping`: Minecraft metadata, social/tunnel protocols and server ping.
+- `packages/launcher-mcp`, `packages/launcher-tools`: the MCP server the app exposes, and launcher maintenance tooling.
 - `packages/path-util`, `tooling-config`: shared paths and tooling.
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) for environment setup and application data isolation before launching the desktop app. Run `pnpm website:dev` or `pnpm app:dev` from the root; prepare `packages/app-lib/.env` from its template for desktop development.
+This map is for orientation, not a membership list: `apps/*` and `packages/*` are pnpm workspace members by glob, and the Cargo members are enumerated in `Cargo.toml`. Read those manifests rather than inferring from this page.
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) for environment setup and application data isolation before launching the desktop app. Run `pnpm website:dev` or `pnpm app:dev` from the root. Service URLs come from `packages/app-lib/build.rs`, which reads an optional `packages/app-lib/.env` and otherwise falls back to the public defaults; create that file only to point the launcher at a local service.
 
 ## Verification and Commits
 
@@ -76,5 +83,6 @@ Read only the standards relevant to the task:
 - [API modules](standards/frontend/ADDING_API_MODULES.md): endpoint types, module registration and exports.
 - [Dependency injection](standards/frontend/DEPENDENCY_INJECTION.md): platform capabilities and page contexts.
 - [Internationalization](standards/frontend/INTERNATIONALIZATION.md): visible strings, ICU and rich text.
+- [Deep links](standards/DEEP_LINKS.md): the `axolotl://` scheme, its namespaces and its confirmation rules.
 - [Figma](standards/frontend/FIGMA_MCP_USAGE.md): adapting designs to existing components and tokens.
 - [Changelog style](standards/maintaining/CHANGELOG.md): requested release-note writing or review.

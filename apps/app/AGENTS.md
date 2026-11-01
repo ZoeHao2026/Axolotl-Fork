@@ -1,11 +1,12 @@
 # Desktop Shell
 
-This Tauri / Rust application owns native command registration, platform integration, packaging and updates. Shared runtime implementation lives in `packages/app-lib`.
+This Tauri / Rust application owns native command registration, platform integration, packaging and updates. `apps/installer-ui` is the Windows-only installer UI that packaging runs, and it is a separate crate from the shell. Shared runtime implementation lives in `packages/app-lib`.
 
 - Read [CONTRIBUTING.md](../../CONTRIBUTING.md) before starting desktop development; initialize required submodules and isolate application data.
 - Read [app-lib instructions](../../packages/app-lib/AGENTS.md) when changing persistence, migrations or downgrade behavior.
 - When changing update announcements, updater triggers or startup dialog priority, read [announcement instructions](../app-frontend/src/announcements/AGENTS.md).
 - Use existing Cargo/package scripts for affected checks. Run `cargo fmt --all --check` for Rust formatting and `cargo check --package theseus_gui --features updater` when shell compilation is affected.
+- `apps/installer-ui` builds and behaves only on Windows; its `main` is a stub on other targets, so a green local build elsewhere proves nothing about it. Its coverage is `cargo test --package axolotl-installer-ui`, `node --test apps/installer-ui/tests/installer-ui.test.cjs`, and the uninstall smoke run driven by `apps/installer-ui/tests/uninstall-smoke.ps1`. Run the affected ones when changing the installer UI or the NSIS templates under [nsis/](nsis/), and say plainly when only a cross-target compile was possible.
 - Assess build, packaging and runtime dependencies before classifying a commit as safe for `[skip ci]`.
 
 ## Tauri Command Completion

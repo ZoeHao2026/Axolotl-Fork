@@ -6,16 +6,19 @@ The shared UI package used by both `apps/website` (Nuxt 3) and `apps/app-fronten
 
 ```
 src/
+├── assets/           # Image assets the components ship (e.g. Minecraft armor)
 ├── components/       # Vue components organized by feature domain
 ├── composables/      # Vue 3 composition API hooks
+├── directives/       # Vue directives, including the tooltip layer
 ├── layouts/          # Self-contained page layouts (see below)
 ├── providers/        # Dependency injection contexts (createContext pattern)
+├── test/             # Visual specs that span components
 ├── utils/            # Utility functions and constants
 ├── locales/          # Locale files (FormatJS)
 ├── styles/           # Tailwind CSS utilities
 ```
 
-Each subdirectory under `components/` has an `index.ts` barrel file. All public API is re-exported from the root `index.ts`, which is the only entry consumers should import from — reaching into `@modrinth/ui/src/*` is blocked by ESLint.
+Subdirectories under `components/` expose their public surface through an `index.ts` barrel, with `components/image-viewer-editor` as the one current exception. All public API is re-exported from the root `index.ts`, which is the only entry consumers should import from — reaching into `@modrinth/ui/src/*` is blocked by ESLint.
 
 ### `src/layouts/`
 
