@@ -1,3 +1,5 @@
+import { CancelledError } from '@tanstack/vue-query'
+
 import { createContext } from './create-context.ts'
 
 export interface WebNotification {
@@ -18,6 +20,48 @@ export interface WebNotification {
 }
 
 export type NotificationPanelLocation = 'left' | 'right'
+
+/**
+ * Cancelling or aborting work is a normal outcome of a user action or a
+ * lifecycle change, not a failure worth an error notification.
+ *
+ * Axolotl reports cancellation through several surfaces: install jobs finish
+ * with an `InstallErrorView` whose code is `canceled` and whose message is
+ * `Install was canceled` (packages/app-lib/src/install/runner.rs), which
+ * `wait_for_install_job` rethrows (apps/app-frontend/src/helpers/install.ts);
+ * Tauri commands serialize `SearchCancelled` and `ResourceError::Canceled`
+ * values (apps/app/src/api/mod.rs); and TanStack Query rejects with a
+ * `CancelledError` when a query is cancelled mid-flight.
+ */
+export function isCancellationError(error: unknown): boolean {
+    if (error instanceof CancelledError) return true
+    if (error === null || typeof error !== 'object') {
+        return typeof error === 'string' && isCanceledMessage(error)
+    }
+
+    const value = error as Record<string, unknown>
+    if (value.code === 'canceled' || value.field_name === 'SearchCancelled') return true
+    if (value.name === 'AbortError') return true
+
+    const message = typeof value.message === 'string' ? value.message : value.error
+    return typeof message === 'string' && isCanceledMessage(message)
+}
+
+const CANCELED_MESSAGES = new Set([
+    // `InstallErrorView` for a user-cancelled install job
+    'Install was canceled',
+    // `ResourceError::Canceled`
+    'resource request canceled',
+])
+
+function isCanceledMessage(message: string): boolean {
+    return (
+        CANCELED_MESSAGES.has(message) ||
+        // Fallback of `settleInstallJob` when a canceled job has no error view
+        /^Install job \S+ canceled$/.test(message) ||
+        /^Search request cancelled: /.test(message)
+    )
+}
 
 export abstract class AbstractWebNotificationManager {
     protected readonly DEFAULT_AUTO_DISMISS_DELAY_MS = 30 * 1000
@@ -72,6 +116,8 @@ export abstract class AbstractWebNotificationManager {
      * @deprecated You should use `addNotification` instead to provide a more human-readable error message to the user.
      */
     handleError(error: unknown): void {
+        if (isCancellationError(error)) return
+
         this.addNotification({
             title: this.errorTitleProvider?.() ?? 'An error occurred',
             text:
