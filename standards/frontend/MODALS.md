@@ -24,15 +24,15 @@
 
 Use the `NewModal` component (`packages/ui/src/components/modal/NewModal.vue`) for all standard modals.
 
-- Set the modal’s width via the `width` or `maxWidth` props. For responsive sizing, use `min(base-size, calc(95vw - 10rem))`.
+- Set the modal's width via the `width` or `maxWidth` props. For responsive sizing, use `min(base-size, calc(95vw - 10rem))`.
 - `ModalWrapper` is deprecated — modal behavior is automatically handled via the `injectModalBehavior` DI utility.
 
 ## Basic Usage
 
 ```vue
 <script setup lang="ts">
-import { ref } from ‘vue’
-import { NewModal } from ‘@modrinth/ui’
+import { ref } from 'vue'
+import { NewModal } from '@modrinth/ui'
 
 const modal = ref<InstanceType<typeof NewModal> | null>(null)
 </script>
@@ -60,12 +60,12 @@ Call `show(event?)` to open the modal. Passing the `MouseEvent` triggers an anim
 | `closeOnEsc`          | `boolean`                             | `true`        | Allow closing with the Escape key                                                                |
 | `closeOnClickOutside` | `boolean`                             | `true`        | Allow closing by clicking the overlay                                                            |
 | `scrollable`          | `boolean`                             | `false`       | Enables scroll tracking with top/bottom fade indicators                                          |
-| `maxContentHeight`    | `string`                              | `’70vh’`      | Max height of the scrollable content area (only applies when `scrollable`)                       |
+| `maxContentHeight`    | `string`                              | `'70vh'`      | Max height of the scrollable content area (only applies when `scrollable`)                       |
 | `noPadding`           | `boolean`                             | `false`       | Removes padding from the content area for edge-to-edge layouts                                   |
-| `maxWidth`            | `string`                              | `’60rem’`     | Maximum width of the modal                                                                       |
+| `maxWidth`            | `string`                              | `'60rem'`     | Maximum width of the modal                                                                       |
 | `width`               | `string`                              | `fit-content` | Width of the modal body                                                                          |
 | `noblur`              | `boolean`                             | —             | Disables backdrop blur. Defaults to the value from `injectModalBehavior`                         |
-| `fade`                | `’standard’ \| ‘warning’ \| ‘danger’` | `’standard’`  | Overlay color variant                                                                            |
+| `fade`                | `'standard' \| 'warning' \| 'danger'` | `'standard'`  | Overlay color variant                                                                            |
 | `danger`              | `boolean`                             | `false`       | **Deprecated** — use `fade="danger"` instead                                                     |
 | `onShow`              | `() => void`                          | —             | Called when the modal opens                                                                      |
 | `onHide`              | `() => void`                          | —             | Called when the modal closes                                                                     |
