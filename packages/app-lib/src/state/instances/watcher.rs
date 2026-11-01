@@ -5,8 +5,14 @@ use crate::state::{
     DirectoryInfo, InstanceInstallStage, ProjectType, attached_world_data,
 };
 use crate::worlds::WorldType;
-use notify::{RecommendedWatcher, RecursiveMode};
-use notify_debouncer_mini::{DebounceEventResult, Debouncer, new_debouncer};
+use notify::event::{AccessKind, AccessMode};
+use notify::{
+    Config, Event, EventHandler, EventKind, RecommendedWatcher, RecursiveMode,
+    Watcher, WatcherKind,
+};
+use notify_debouncer_mini::{
+    DebounceEventResult, Debouncer, new_debouncer_opt,
+};
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
@@ -22,11 +28,70 @@ use super::adapters::sqlite::instance_rows;
 use super::config_sync::{CONFIG_FILE_NAME, CONFIG_FILE_TEMP_NAME};
 
 pub struct FileWatcher {
-    watcher: RwLock<Debouncer<RecommendedWatcher>>,
+    watcher: RwLock<Debouncer<WriteOnlyWatcher>>,
     instance_ids: Arc<RwLock<HashMap<String, HashSet<String>>>>,
     content_changes: Arc<RwLock<HashMap<String, InstanceContentChangeState>>>,
     manual_import_directory: Arc<RwLock<Option<PathBuf>>>,
     manual_import_generation: Arc<AtomicU64>,
+}
+
+/// A platform watcher that reports writes and drops reads.
+///
+/// The inotify backend reports `IN_OPEN` and `IN_CLOSE_NOWRITE`, and
+/// `notify-debouncer-mini` throws the event kind away, so without this filter
+/// every plain read of a watched file — the locale indexer reading
+/// `options.txt`, a log tail, an antivirus scan — looks like a change. The
+/// reader then reacts to its own read and the pair loop.
+pub struct WriteOnlyWatcher(RecommendedWatcher);
+
+/// Whether the event describes something other than a completed write.
+///
+/// Only `Access(Close(Write))` is a write finishing. Opens, read-closes and
+/// every other access kind are reads, and a read changes nothing.
+fn is_read_only_access(kind: &EventKind) -> bool {
+    matches!(kind, EventKind::Access(access)
+        if *access != AccessKind::Close(AccessMode::Write))
+}
+
+impl Watcher for WriteOnlyWatcher {
+    fn new<F: EventHandler>(
+        mut event_handler: F,
+        config: Config,
+    ) -> notify::Result<Self> {
+        RecommendedWatcher::new(
+            move |event: notify::Result<Event>| {
+                if event
+                    .as_ref()
+                    .is_ok_and(|event| is_read_only_access(&event.kind))
+                {
+                    return;
+                }
+                event_handler.handle_event(event);
+            },
+            config,
+        )
+        .map(Self)
+    }
+
+    fn watch(
+        &mut self,
+        path: &Path,
+        recursive_mode: RecursiveMode,
+    ) -> notify::Result<()> {
+        self.0.watch(path, recursive_mode)
+    }
+
+    fn unwatch(&mut self, path: &Path) -> notify::Result<()> {
+        self.0.unwatch(path)
+    }
+
+    fn configure(&mut self, option: Config) -> notify::Result<bool> {
+        self.0.configure(option)
+    }
+
+    fn kind() -> WatcherKind {
+        RecommendedWatcher::kind()
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -62,8 +127,9 @@ pub async fn init_watcher() -> crate::Result<FileWatcher> {
     let event_manual_import_directory = manual_import_directory.clone();
     let manual_import_generation = Arc::new(AtomicU64::new(0));
 
-    let file_watcher = new_debouncer(
-        Duration::from_secs_f32(1.0),
+    let file_watcher = new_debouncer_opt::<_, WriteOnlyWatcher>(
+        notify_debouncer_mini::Config::default()
+            .with_timeout(Duration::from_secs_f32(1.0)),
         move |res: DebounceEventResult| {
             tx.blocking_send(res).ok();
         },
@@ -966,5 +1032,45 @@ mod config_file_name_tests {
                 .unwrap()
                 .epoch
         );
+    }
+}
+
+#[cfg(test)]
+mod access_filter_tests {
+    use super::*;
+    use notify::event::{CreateKind, ModifyKind, RemoveKind};
+
+    /// The event a read produces must not reach the debouncer, or the reader
+    /// it was caused by reacts to itself.
+    #[test]
+    fn opens_and_read_closes_are_reads() {
+        assert!(is_read_only_access(&EventKind::Access(AccessKind::Open(
+            AccessMode::Read
+        ))));
+        assert!(is_read_only_access(&EventKind::Access(AccessKind::Read)));
+        assert!(is_read_only_access(&EventKind::Access(AccessKind::Close(
+            AccessMode::Read
+        ))));
+        assert!(is_read_only_access(&EventKind::Access(AccessKind::Open(
+            AccessMode::Any
+        ))));
+    }
+
+    /// The event that says a write finished is the one the watcher exists for.
+    #[test]
+    fn write_close_is_not_a_read() {
+        assert!(!is_read_only_access(&EventKind::Access(AccessKind::Close(
+            AccessMode::Write
+        ))));
+    }
+
+    /// Content changes are never access events, so the filter leaves them be.
+    #[test]
+    fn content_changes_are_kept() {
+        assert!(!is_read_only_access(&EventKind::Create(CreateKind::File)));
+        assert!(!is_read_only_access(&EventKind::Modify(ModifyKind::Data(
+            notify::event::DataChange::Content
+        ))));
+        assert!(!is_read_only_access(&EventKind::Remove(RemoveKind::File)));
     }
 }
