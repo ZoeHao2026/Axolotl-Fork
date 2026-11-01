@@ -594,22 +594,58 @@ fn decoded(raw: &str) -> String {
     decode_segment(raw).unwrap_or_default()
 }
 
+/// Whether a link carrying the launcher's own scheme may be honoured.
+///
+/// Fails closed, the same way `require_privileged` does: a launcher that cannot
+/// read its own settings must not assume the link was allowed, because doing so
+/// quietly disables the `allow_external_scheme` switch. `None` means the setting
+/// could not be read.
+fn external_scheme_decision(settings: Option<&Settings>) -> bool {
+    settings.is_some_and(|settings| settings.allow_external_scheme)
+}
+
 async fn external_scheme_allowed() -> bool {
     match crate::State::get().await {
         Ok(state) => match Settings::get(&state.data).await {
-            Ok(settings) => settings.allow_external_scheme,
-            Err(_) => true,
+            Ok(settings) => external_scheme_decision(Some(&settings)),
+            Err(error) => {
+                tracing::warn!(
+                    %error,
+                    "Could not read the settings that gate external links; refusing them"
+                );
+                external_scheme_decision(None)
+            }
         },
-        Err(_) => true,
+        Err(error) => {
+            tracing::warn!(
+                %error,
+                "The app state is unavailable to gate external links; refusing them"
+            );
+            external_scheme_decision(None)
+        }
     }
 }
 
 pub async fn parse_command(
     command_string: &str,
 ) -> crate::Result<CommandPayload> {
+    parse_command_with_external_scheme(
+        command_string,
+        external_scheme_allowed().await,
+    )
+    .await
+}
+
+/// The parsing behind `parse_command`, with the external-link decision already
+/// made. The launcher reaches it through `parse_command`; tests reach it
+/// directly so both branches are covered without booting the app state.
+async fn parse_command_with_external_scheme(
+    command_string: &str,
+    external_scheme_allowed: bool,
+) -> crate::Result<CommandPayload> {
     tracing::debug!("Parsing command: {}", &command_string);
     if let Some(sublink) = command_string.strip_prefix("axolotl://") {
-        if !external_scheme_allowed().await {
+        if !external_scheme_allowed {
             emit_warning("External links are disabled in settings").await?;
             return Err(crate::ErrorKind::InputError(
                 "External links are disabled in settings".to_string(),
@@ -648,10 +684,68 @@ pub async fn parse_and_emit_command(command_string: &str) -> crate::Result<()> {
 mod tests {
     use super::*;
 
+    /// The parser with the external-link gate opened, which is what a launcher
+    /// whose settings allow the scheme does. The gate itself is covered by the
+    /// `external_scheme_*` tests below.
+    async fn parse_allowed(
+        command_string: &str,
+    ) -> crate::Result<CommandPayload> {
+        parse_command_with_external_scheme(command_string, true).await
+    }
+
+    #[tokio::test]
+    async fn refuses_link_scheme_when_the_gate_is_closed() {
+        let error = match parse_command_with_external_scheme(
+            "axolotl://project/sodium",
+            false,
+        )
+        .await
+        {
+            Ok(_) => {
+                panic!("a closed gate must not parse the launcher's own scheme")
+            }
+            Err(error) => error,
+        };
+        assert!(
+            error.to_string().contains("External links are disabled"),
+            "unexpected error: {error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn still_parses_local_file_paths_when_the_gate_is_closed() {
+        // The gate covers the launcher's own scheme, not a pack path handed to
+        // the app by the operating system, which carries no URL at all.
+        let directory = tempfile::TempDir::new().unwrap();
+        let pack = directory.path().join("pack.mrpack");
+        std::fs::write(&pack, b"not a real pack").unwrap();
+        assert!(matches!(
+            parse_command_with_external_scheme(&pack.to_string_lossy(), false)
+                .await
+                .unwrap(),
+            CommandPayload::RunMRPack { .. }
+        ));
+    }
+
+    #[test]
+    fn external_scheme_decision_fails_closed() {
+        // Settings that could not be read must not open the gate: refusing is
+        // the only answer that keeps the kill switch meaningful.
+        assert!(!external_scheme_decision(None));
+
+        let default_settings = Settings::default();
+        assert!(default_settings.allow_external_scheme);
+        assert!(external_scheme_decision(Some(&default_settings)));
+
+        let mut disabled = Settings::default();
+        disabled.allow_external_scheme = false;
+        assert!(!external_scheme_decision(Some(&disabled)));
+    }
+
     #[tokio::test]
     async fn parses_launch_query_command() {
         let command =
-            parse_command(
+            parse_allowed(
                 "axolotl://launch?instance_id=example%20instance&server=example.org%3A25565",
             )
             .await
@@ -666,23 +760,23 @@ mod tests {
     #[tokio::test]
     async fn parses_legacy_aliases() {
         assert!(matches!(
-            parse_command("axolotl://discovery").await.unwrap(),
+            parse_allowed("axolotl://discovery").await.unwrap(),
             CommandPayload::OpenRoute { path, .. } if path == "/browse/mod"
         ));
         assert!(matches!(
-            parse_command("axolotl://favorites?x=1").await.unwrap(),
+            parse_allowed("axolotl://favorites?x=1").await.unwrap(),
             CommandPayload::OpenRoute { path, query } if path == "/browse/favorites" && query == Some("x=1".to_string())
         ));
         assert!(matches!(
-            parse_command("axolotl://seed-map?seed=1").await.unwrap(),
+            parse_allowed("axolotl://seed-map?seed=1").await.unwrap(),
             CommandPayload::OpenRoute { path, query } if path == "/lab/seed-map" && query == Some("seed=1".to_string())
         ));
         assert!(matches!(
-            parse_command("axolotl://mod/sodium").await.unwrap(),
+            parse_allowed("axolotl://mod/sodium").await.unwrap(),
             CommandPayload::InstallMod { id } if id == "sodium"
         ));
         assert!(matches!(
-            parse_command("axolotl://launch/instance/my-pack?server=example.org").await.unwrap(),
+            parse_allowed("axolotl://launch/instance/my-pack?server=example.org").await.unwrap(),
             CommandPayload::LaunchInstance { id, server: Some(server), .. }
                 if id == "my-pack" && server == "example.org"
         ));
@@ -691,27 +785,27 @@ mod tests {
     #[tokio::test]
     async fn parses_unified_commands() {
         assert!(matches!(
-            parse_command("axolotl://project/sodium?tab=versions").await.unwrap(),
+            parse_allowed("axolotl://project/sodium?tab=versions").await.unwrap(),
             CommandPayload::OpenRoute { path, .. } if path == "/project/sodium/versions"
         ));
         assert!(matches!(
-            parse_command("axolotl://browse/mod?q=carpet").await.unwrap(),
+            parse_allowed("axolotl://browse/mod?q=carpet").await.unwrap(),
             CommandPayload::OpenRoute { path, query } if path == "/browse/mod" && query == Some("q=carpet".to_string())
         ));
         assert!(matches!(
-            parse_command("axolotl://instance/my-pack?tab=logs").await.unwrap(),
+            parse_allowed("axolotl://instance/my-pack?tab=logs").await.unwrap(),
             CommandPayload::OpenRoute { path, .. } if path == "/instance/my-pack/logs"
         ));
         assert!(matches!(
-            parse_command("axolotl://settings?tab=privacy-data").await.unwrap(),
+            parse_allowed("axolotl://settings?tab=privacy-data").await.unwrap(),
             CommandPayload::OpenSettings { tab: Some(tab), .. } if tab == "privacy-data"
         ));
         assert!(matches!(
-            parse_command("axolotl://open?path=/library/servers").await.unwrap(),
+            parse_allowed("axolotl://open?path=/library/servers").await.unwrap(),
             CommandPayload::OpenRoute { path, .. } if path == "/library/servers"
         ));
         assert!(matches!(
-            parse_command("axolotl://install?version=abc123").await.unwrap(),
+            parse_allowed("axolotl://install?version=abc123").await.unwrap(),
             CommandPayload::InstallVersion { id } if id == "abc123"
         ));
     }
