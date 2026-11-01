@@ -581,7 +581,17 @@ fn sidecar_path(path: &Path, suffix: &str) -> PathBuf {
 
 async fn connect_app_db(db_path: &Path) -> crate::Result<Pool<Sqlite>> {
     super::db_backup::prepare_app_db(db_path).await?;
-    super::db_backup::maybe_backup_existing_app_db(db_path).await?;
+    // A backup that cannot be written is a reason to say so, not a reason to
+    // leave the user without a launcher: the migrations that follow are the
+    // step that has to run either way.
+    if let Err(error) =
+        super::db_backup::maybe_backup_existing_app_db(db_path).await
+    {
+        tracing::warn!(
+            %error,
+            "Continuing without a pre-migration app database backup"
+        );
+    }
     open_migrated_app_db(db_path).await
 }
 

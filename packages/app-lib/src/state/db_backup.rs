@@ -332,6 +332,27 @@ async fn cleanup_staged_database(db_path: &Path) {
     let _ = remove_database_sidecars(db_path).await;
 }
 
+/// Copies the database file and its write-ahead log byte for byte.
+///
+/// This is the fallback for a snapshot that `VACUUM INTO` could not produce,
+/// which as a rule means the database itself is damaged: the raw files are then
+/// what a recovery needs, and a database that cannot be vacuumed cannot be
+/// asked for a consistent copy either.
+async fn copy_app_db_files(
+    db_path: &Path,
+    backup_path: &Path,
+) -> crate::Result<()> {
+    crate::util::io::copy(db_path, backup_path).await?;
+
+    let wal = sqlite_sidecar_path(db_path, "-wal");
+    if wal.try_exists()? {
+        crate::util::io::copy(&wal, sqlite_sidecar_path(backup_path, "-wal"))
+            .await?;
+    }
+
+    Ok(())
+}
+
 pub(crate) async fn maybe_backup_existing_app_db(
     db_path: &Path,
 ) -> crate::Result<()> {
@@ -429,10 +450,15 @@ pub(crate) async fn maybe_backup_existing_app_db(
         create_verified_sqlite_snapshot(&mut conn, &backup_path).await
     {
         tracing::error!(
-            "Failed to create pre-migration app database backup at {}: {err}",
+            "Failed to create pre-migration app database backup at {}, falling back to copying the database files: {err}",
             backup_path.display()
         );
-        return Err(err);
+        // The snapshot opens the database read-only and holds the file while it
+        // runs. A copy taken underneath that connection would capture a file
+        // still being read, so the connection goes first.
+        let _ = conn.close().await;
+        cleanup_staged_database(&backup_path).await;
+        copy_app_db_files(db_path, &backup_path).await?;
     }
 
     tracing::info!(
