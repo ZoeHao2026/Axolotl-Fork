@@ -12236,6 +12236,9 @@
   "app.settings.updates.offline": {
     "message": "请连接到互联网后检查更新。"
   },
+  "app.settings.updates.package-managed": {
+    "message": "当前 Axolotl 安装由系统包管理器管理，启动器无法自行安装更新。请通过该包管理器更新 Axolotl。"
+  },
   "app.settings.updates.pause": {
     "message": "暂停更新"
   },
@@ -12769,6 +12772,9 @@
   },
   "app.update-popup.body.metered": {
     "message": "Axolotl Launcher v{version} 现已发布！由于你正在使用按流量计费的网络，该更新未自动下载。"
+  },
+  "app.update-popup.body.package-managed": {
+    "message": "Axolotl Launcher v{version} 现已发布，但当前安装由系统包管理器管理，启动器无法自行安装更新。请通过该包管理器更新 Axolotl。"
   },
   "app.update-popup.changelog": {
     "message": "更新日志"

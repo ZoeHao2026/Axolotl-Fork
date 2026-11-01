@@ -10,9 +10,10 @@ import {
 } from '@modrinth/ui'
 import { getVersion } from '@tauri-apps/api/app'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
-import { inject, nextTick, ref, watch } from 'vue'
+import { computed, inject, nextTick, ref, watch } from 'vue'
 
 import UpdateAnnouncementHistory from '@/components/ui/announcement/UpdateAnnouncementHistory.vue'
+import { shouldExplainPackageManagedUpdate } from '@/helpers/app-update'
 import {
     betaDatabaseExists,
     copyDatabaseBetweenChannels,
@@ -25,7 +26,11 @@ import {
     type UpdateChannel,
 } from '@/helpers/settings.ts'
 import { isDev, restartApp } from '@/helpers/utils.js'
-import { type AppUpdateCheckResult, checkForAppUpdate } from '@/providers/app-update.ts'
+import {
+    type AppUpdateCheckResult,
+    appUpdateState,
+    checkForAppUpdate,
+} from '@/providers/app-update.ts'
 
 import SettingsRow from './SettingsRow.vue'
 import SettingsSection from './SettingsSection.vue'
@@ -47,6 +52,13 @@ const checkResult = ref<AppUpdateCheckResult | 'failed' | null>(null)
 const currentDatabasePath = ref(databasePath)
 const latestChannelVersions = ref<Partial<Record<UpdateChannel, string>>>({})
 const latestChannelVersionsLoaded = ref(false)
+const { availableUpdate } = appUpdateState
+const packageManagedUpdate = computed(() =>
+    shouldExplainPackageManagedUpdate({
+        checkResult: checkResult.value,
+        installSupported: availableUpdate.value?.installSupported,
+    }),
+)
 const previewUpdateAnnouncement = inject<(version: string) => void>('previewUpdateAnnouncement')
 const restartModal = ref<InstanceType<typeof NewModal>>()
 const copyDatabaseModal = ref<InstanceType<typeof NewModal>>()
@@ -109,6 +121,10 @@ const messages = defineMessages({
     available: {
         id: 'app.settings.updates.available',
         defaultMessage: 'An update is available.',
+    },
+    packageManaged: {
+        id: 'app.settings.updates.package-managed',
+        defaultMessage: `This Axolotl installation is managed by your system's package manager, so the launcher cannot install updates itself. Update Axolotl through that package manager.`,
     },
     upToDate: {
         id: 'app.settings.updates.up-to-date',
@@ -656,6 +672,9 @@ function onDatabaseOperationModalHide() {
                     role="status"
                 >
                     {{ formatMessage(messages[resultMessages[checkResult]]) }}
+                </p>
+                <p v-if="packageManagedUpdate" class="update-check-result" role="status">
+                    {{ formatMessage(messages.packageManaged) }}
                 </p>
             </div>
         </SettingsSection>

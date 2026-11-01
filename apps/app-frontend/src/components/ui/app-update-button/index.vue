@@ -52,6 +52,7 @@ const messages = defineMessages({
 })
 
 const {
+    availableUpdate,
     downloading,
     downloadPercent,
     downloadProgress,
@@ -66,8 +67,14 @@ const isUpdateDownloading = computed(
         downloading.value ||
         (downloadProgress.value > 0 && downloadProgress.value < 1 && !finishedDownloading.value),
 )
+// A package-managed installation cannot install the update itself, so the pill
+// must not invite a download; the update notification explains what to do.
+const packageManagedUpdate = computed(() => availableUpdate.value?.installSupported === false)
 const showUpdatePill = computed(
-    () => isUpdateVisible.value && (finishedDownloading.value || metered.value),
+    () =>
+        isUpdateVisible.value &&
+        !packageManagedUpdate.value &&
+        (finishedDownloading.value || metered.value),
 )
 const animateReadyPill = ref(false)
 const updateLabel = computed(() => {

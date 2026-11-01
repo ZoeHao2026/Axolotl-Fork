@@ -89,6 +89,7 @@ vi.mock(import('@/composables/browse/install-job-notifications'), () => ({
 }))
 vi.mock('@/providers/app-update', () => ({
     appUpdateState: {
+        availableUpdate: ref(null),
         downloading: ref(false),
         downloadPercent: ref(100),
         downloadProgress: ref(1),

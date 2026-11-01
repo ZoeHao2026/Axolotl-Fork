@@ -112,6 +112,7 @@ import { startMcpUiBridge } from '@/features/mcp/interface'
 import McpConnectionOverlay from '@/features/mcp/McpConnectionOverlay.vue'
 import { startMcpStateSync } from '@/features/mcp/runtime'
 import { trackEvent } from '@/helpers/analytics'
+import { canLauncherInstallUpdate, shouldAutoDownloadUpdate } from '@/helpers/app-update'
 import { get_user, get_version } from '@/helpers/cache.js'
 import { configureCurseForgeManualDownloadWatcher } from '@/helpers/curseforge'
 import { applySettingChanges } from '@/helpers/deep-link-settings.ts'
@@ -2541,6 +2542,10 @@ const updatePopupMessages = defineMessages({
         id: 'app.update-popup.body.metered',
         defaultMessage: `Axolotl Launcher v{version} is available now! Since you're on a metered network, we didn't automatically download it.`,
     },
+    packageManagedBody: {
+        id: 'app.update-popup.body.package-managed',
+        defaultMessage: `Axolotl Launcher v{version} is available, but this installation is managed by your system's package manager, so the launcher cannot install updates itself. Update Axolotl through that package manager.`,
+    },
     downloadedBody: {
         id: 'app.update-popup.body.download-complete',
         defaultMessage: `Axolotl Launcher v{version} has finished downloading. Reload to update now, or automatically when you close Axolotl Launcher.`,
@@ -2609,7 +2614,23 @@ function showDelayedUpdatePopup() {
         return
     }
 
-    if (metered.value && !finishedDownloading.value) {
+    if (!canLauncherInstallUpdate(update.installSupported)) {
+        addPopupNotification({
+            title: formatMessage(updatePopupMessages.updateAvailable),
+            text: formatMessage(updatePopupMessages.packageManagedBody, {
+                version: update.version,
+            }),
+            type: 'info',
+            autoCloseMs: null,
+            buttons: [
+                {
+                    label: formatMessage(updatePopupMessages.changelog),
+                    action: () => openAppUpdateChangelog(),
+                    keepOpen: true,
+                },
+            ],
+        })
+    } else if (metered.value && !finishedDownloading.value) {
         addPopupNotification({
             title: formatMessage(updatePopupMessages.updateAvailable),
             text: formatMessage(updatePopupMessages.meteredBody, { version: update.version }),
@@ -2714,11 +2735,22 @@ async function performUpdateCheck() {
 
     metered.value = await isNetworkMetered()
 
-    if (!metered.value) {
+    if (
+        shouldAutoDownloadUpdate({
+            installSupported: update.installSupported,
+            metered: metered.value,
+        })
+    ) {
         console.log('Starting download of update')
         downloadUpdate(update)
     } else {
-        console.log(`Metered connection detected, not auto-downloading update.`)
+        if (!canLauncherInstallUpdate(update.installSupported)) {
+            console.log(
+                'This installation is managed by a package manager, so the update must be installed through it.',
+            )
+        } else {
+            console.log(`Metered connection detected, not auto-downloading update.`)
+        }
         markAppUpdateActionable(update.version)
         scheduleDelayedUpdatePopup()
     }
@@ -2752,6 +2784,15 @@ async function downloadAvailableUpdate() {
 async function downloadUpdate(versionToDownload) {
     if (!versionToDownload) {
         handleError(`Failed to download update: no version available`)
+        return
+    }
+
+    if (!canLauncherInstallUpdate(versionToDownload.installSupported)) {
+        // Package-manager-owned installations cannot be replaced by the
+        // updater; the notification explains how to update instead.
+        console.warn(
+            `Update ${versionToDownload.version} cannot be installed by the launcher on this system.`,
+        )
         return
     }
 

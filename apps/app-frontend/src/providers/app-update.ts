@@ -10,6 +10,12 @@ export interface AppUpdate {
     currentVersion?: string
     publishedAt?: string
     forceUpdate?: boolean
+    /**
+     * Whether this installation is one the updater can replace. `false` means a
+     * package manager owns the running binary (or this is a development build),
+     * so the launcher cannot install the update itself. Older backends omit it.
+     */
+    installSupported?: boolean
 }
 
 interface UpdatePromptState {
