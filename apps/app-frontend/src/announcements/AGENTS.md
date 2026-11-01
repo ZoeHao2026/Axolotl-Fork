@@ -1,32 +1,20 @@
 # Desktop Update Announcements
 
-Launcher release announcements are bundled with `apps/app-frontend` and shown after a completed app update and in Settings > Updates.
-
-## Before you change it
-
-- Read the [changelog style standard](../../../../standards/maintaining/CHANGELOG.md) for how a requested release note is written and reviewed.
+Release announcements ship inside `apps/app-frontend` and appear after a completed update and in Settings > Updates.
 
 ## Rules
 
-- Add ordinary release announcements only to `apps/app-frontend/src/announcements/catalog.ts`; adding an entry must not require changes to `App.vue`, the updater, or the announcement components.
-- Do not edit the announcement catalog unless the user explicitly asks for an update log.
-- Ask the user for the exact launcher version before writing the announcement unless they already provided it. Use that version exactly; do not query the remote or infer a version from local metadata to choose one automatically.
-- A catalog entry remains editable until its matching release tag has been published to `origin`. Before changing an existing entry, query both `refs/tags/v<version>` and `refs/tags/<version>` with `git ls-remote --tags --refs origin`; when either exists, the release is published and the entry must not change.
-- Give every release an ID in the form `launcher-<version>`, use the exact launcher version and ISO `YYYY-MM-DD` publication date, and place the newest release first. An unpublished entry may be amended to include its release changes. Once its release tag is published, never reuse its ID, edit the entry, or change its meaning.
-- Use only the Keep a Changelog categories `added`, `changed`, `deprecated`, `removed`, `fixed`, and `security`. Omit empty categories.
-- Provide both `en-US` and `zh-CN` text for the title and every change. Other locales intentionally fall back to English; do not copy announcement bodies into every locale JSON file.
-- Keep entries concise and user-facing. Describe observable features, behavior changes, removals, fixes, and security impact rather than implementation details.
-- `pending_update_toast_for_version` is the persisted trigger for the post-update announcement. Do not add separate per-release startup checks or clear it before the announcement closes.
-- Preserve startup dialog priority: initialization errors, first-run onboarding, post-update announcement, then community announcement. A replayed onboarding tour must not consume a pending post-update announcement.
-- Keep launcher release notes exclusively in the catalog. Do not create or maintain a separate `UPDATE_LOG.md` file.
-- The GitHub release workflow generates its release body from the matching catalog entry with `scripts/axolotl/create-release-notes.mjs`; a release tag without a catalog entry must fail preflight.
-- Local development builds expose a preview button in Settings > Updates. Use it to test the real announcement modal without changing onboarding or pending-update state; do not add per-version preview branches.
+- Write entries only in `apps/app-frontend/src/announcements/catalog.ts`, and only when the user asks for an update log and gives the exact version. Never infer the version from local metadata or the remote.
+- An entry stays editable until its release tag is published. Check both `refs/tags/v<version>` and `refs/tags/<version>` with `git ls-remote --tags --refs origin`; once either exists the entry is frozen — never reuse its ID or change its meaning.
+- ID `launcher-<version>`, ISO `YYYY-MM-DD` date, newest first. Keep a Changelog categories only (`added`, `changed`, `deprecated`, `removed`, `fixed`, `security`), omitting empty ones.
+- Title and every change in both `en-US` and `zh-CN`. Other locales fall back to English on purpose — do not copy bodies into them.
+- User-facing and concise: observable behaviour, never implementation detail. Release notes live here and nowhere else — no `UPDATE_LOG.md`.
+- `pending_update_toast_for_version` is the persisted trigger. Do not add per-release startup checks, and do not clear it before the announcement closes.
+- Startup dialog priority is fixed: initialisation errors, first-run onboarding, post-update announcement, community announcement. A replayed tour must not consume a pending announcement.
+- Local dev builds have a preview button in Settings > Updates. Use it instead of adding per-version branches.
+- Changing the schema, categories, fallback or priority means updating the catalog types, both display surfaces and this file together.
+- The release workflow builds the release body from the catalog through `scripts/axolotl/create-release-notes.mjs`; a tag without an entry must fail preflight.
 
-## When the format itself changes
+## Verify
 
-If the announcement schema, categories, fallback behavior, or dialog priority changes, update the catalog types, both announcement display surfaces, and this instruction file together.
-
-## Verification
-
-- `node --test scripts/axolotl/create-release-notes.test.mjs` after changing the catalog or the release-note generator.
-- `pnpm --filter @modrinth/app-frontend test` when a display surface or the modal changed.
+`node --test scripts/axolotl/create-release-notes.test.mjs`; `pnpm --filter @modrinth/app-frontend test` when a display surface changed.

@@ -1,21 +1,17 @@
 # Desktop Onboarding
 
-When adding or materially changing a desktop app page, route, navigation entry, large user-facing component, core workflow, settings section, or content-management feature under `apps/app-frontend`, assess the Axolotl onboarding experience.
+Assess onboarding whenever you add or materially change a desktop page, route, navigation entry, large component, core workflow, settings section or content-management feature.
 
 ## Rules
 
-- Update the onboarding when the feature is relevant to a new user's first-use journey or changes an existing guided workflow.
-- Define tours and localized message descriptors in `apps/app-frontend/src/components/ui/onboarding/onboardingConfig.ts`. Keep `OnboardingOverlay` presentational and put reusable runtime behavior in `useOnboardingTour`; do not add step-ID-specific branches to either file.
-- Add one stable, semantic `data-onboarding-id` to the component that owns each guided target, then reference that ID through `targetId` in the step configuration. Remove targets when their steps are removed.
-- Choose the interaction deliberately: `navigate` must use the real control and wait for its route, `activate` must execute the control's original behavior, and `inspect` must explain a region while any non-onboarding click advances without activating the underlying UI.
-- Express workflow branches with `branchByTarget` and `nextByCreationPath` in the step configuration instead of hard-coded conditionals. Missing optional targets must time out and skip rather than trap the tour or show placeholder copy.
-- Do not add a navigation step for the page that first-run or replay mode already opens. Establish prerequisite route or modal state before starting the tour, then begin with useful page content.
-- Keep the step definition, target, interaction, expected route, branch behavior, and English and Simplified Chinese FormatJS copy synchronized with the feature.
-- For a major feature that should not appear in the first-run tour, add an appropriate contextual/replayable tour or document why onboarding is not needed.
-- Add future mascot assets only through `OnboardingMascotStage`; do not scatter mascot asset references across onboarding steps.
+- Tours and message descriptors live in `onboardingConfig.ts`. `OnboardingOverlay` stays presentational and reusable runtime lives in `useOnboardingTour`; neither may branch on a step ID.
+- Each guided target carries one stable `data-onboarding-id`, referenced as `targetId`, and is removed together with its step.
+- Pick the interaction deliberately: `navigate` uses the real control and waits for its route, `activate` runs the control's own behaviour, `inspect` explains a region and lets any non-onboarding click advance without triggering the UI beneath.
+- Branch with `branchByTarget` and `nextByCreationPath`, never hard-coded conditionals. A missing optional target times out and skips — it must not trap the tour or show placeholder copy.
+- Do not navigate to the page that first-run or replay already opened; establish the route or modal first, then start on useful content.
+- Keep step, target, interaction, expected route, branch and both locales' (`en-US`, `zh-CN`) FormatJS copy in sync. A major feature outside the first-run tour needs a contextual or replayable tour, or a note saying why none.
+- Mascot assets go only through `OnboardingMascotStage`.
 
-## Verification
+## Verify
 
-- Verify first-run and replay modes, target-missing behavior, narrow windows, and guided modals after changing any target.
-- Guided modals must reserve space for the bottom dialogue instead of rendering beneath it.
-- `pnpm --filter @modrinth/app-frontend test` for the suite that covers the overlay and the tour runtime.
+Exercise first-run and replay modes, missing targets, narrow windows and guided modals after any target change. A guided modal must reserve room for the bottom dialogue rather than render beneath it.
