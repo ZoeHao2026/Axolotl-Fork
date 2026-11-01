@@ -146,21 +146,31 @@ pub(in crate::api::instance) async fn ensure_link(
     }
 }
 
+/// Stops the file at `target` being a link to `source`, leaving whatever the
+/// user can already see there as a plain file.
+///
+/// A `target` that is not there has nothing to detach. Writing `source`'s
+/// contents into it instead would create a file the user never had, which is
+/// how a sync that was switched off used to put itself back.
 pub(in crate::api::instance) async fn detach_link(
     source: &Path,
     target: &Path,
 ) -> crate::Result<()> {
-    let target_metadata = tokio::fs::symlink_metadata(target).await.ok();
-    let contents = if target_metadata.is_some() && target.exists() {
+    match tokio::fs::symlink_metadata(target).await {
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(());
+        }
+        Err(error) => return Err(error.into()),
+    }
+    let contents = if target.exists() {
         Some(io::read(target).await?)
     } else if source.exists() {
         Some(io::read(source).await?)
     } else {
         None
     };
-    if target_metadata.is_some() {
-        io::remove_file(target).await?;
-    }
+    io::remove_file(target).await?;
     if let Some(contents) = contents {
         io::write(target, contents).await?;
     }
@@ -302,4 +312,58 @@ pub(in crate::api::instance) fn nbt_from_bytes(
         quartz_nbt::io::Flavor::Uncompressed,
     )?;
     Ok(root)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[tokio::test]
+    async fn detach_link_leaves_a_missing_target_missing() {
+        // The file was never there, so nothing is linked to `source` and the
+        // sync has nothing to undo. Reading `source` into the target here is
+        // how a switched-off sync used to hand the user a file back.
+        let directory = TempDir::new().unwrap();
+        let source = directory.path().join("source.txt");
+        let target = directory.path().join("target.txt");
+        tokio::fs::write(&source, b"the source").await.unwrap();
+
+        detach_link(&source, &target).await.unwrap();
+
+        assert!(
+            !target.exists(),
+            "detaching a link that was never made must not create {}",
+            target.display()
+        );
+        assert_eq!(tokio::fs::read(&source).await.unwrap(), b"the source");
+    }
+
+    #[tokio::test]
+    async fn detach_link_turns_a_link_into_the_contents_it_showed() {
+        let directory = TempDir::new().unwrap();
+        let source = directory.path().join("source.txt");
+        let target = directory.path().join("target.txt");
+        tokio::fs::write(&source, b"linked contents").await.unwrap();
+        tokio::fs::hard_link(&source, &target).await.unwrap();
+
+        detach_link(&source, &target).await.unwrap();
+
+        assert_eq!(tokio::fs::read(&target).await.unwrap(), b"linked contents");
+        // Unlinking must leave the source alone.
+        assert_eq!(tokio::fs::read(&source).await.unwrap(), b"linked contents");
+    }
+
+    #[tokio::test]
+    async fn detach_link_keeps_the_user_s_copy_when_it_diverged() {
+        let directory = TempDir::new().unwrap();
+        let source = directory.path().join("source.txt");
+        let target = directory.path().join("target.txt");
+        tokio::fs::write(&source, b"synced").await.unwrap();
+        tokio::fs::write(&target, b"edited locally").await.unwrap();
+
+        detach_link(&source, &target).await.unwrap();
+
+        assert_eq!(tokio::fs::read(&target).await.unwrap(), b"edited locally");
+    }
 }
