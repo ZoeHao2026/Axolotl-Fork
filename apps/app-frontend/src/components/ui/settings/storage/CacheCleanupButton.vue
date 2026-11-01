@@ -4,6 +4,7 @@ import { Button, NewModal, useFormatBytes, useVIntl } from '@modrinth/ui'
 import { ref } from 'vue'
 
 import { purgeLauncherCache } from '@/helpers/cache.js'
+import { errorText } from '@/helpers/error-text'
 import type { CacheCleanupResult } from '@/helpers/storage'
 import { useTheming } from '@/store/theme'
 
@@ -39,7 +40,9 @@ async function clear() {
         emit('cleared')
     } catch (error) {
         failed.value = true
-        errorDetail.value = error instanceof Error ? error.message : String(error)
+        // A rejected `invoke` is a serialized object, not an `Error`; showing
+        // it verbatim used to display "[object Object]" under the failure list.
+        errorDetail.value = errorText(error) ?? ''
         console.warn('[storage] Cache cleanup failed', error)
     } finally {
         busy.value = false

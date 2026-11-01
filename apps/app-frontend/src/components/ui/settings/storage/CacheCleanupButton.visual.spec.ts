@@ -117,6 +117,27 @@ it('leaves the cache confirmation available for retry after failure', async () =
     expect(wrapper.text()).toContain('Could not clear the cache')
     expect(wrapper.emitted('cleared')).toBeUndefined()
 })
+it('shows the readable failure list for a serialized Tauri rejection', async () => {
+    // Tauri serializes command errors, so a rejection is a plain
+    // `{ field_name, message }` object. String() on it used to render
+    // "[object Object]" under "Files that could not be cleared" (#834).
+    const wrapper = mount(CacheCleanupButton)
+    mounted.push(wrapper)
+    await wrapper.get('button').trigger('click')
+    vi.mocked(purgeLauncherCache).mockRejectedValueOnce({
+        field_name: 'Theseus',
+        message: 'Another operation is still using the cache',
+    })
+    await wrapper
+        .findAll('button')
+        .filter((button) => button.text() === 'Clear cache')[1]
+        .trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Could not clear the cache')
+    expect(wrapper.text()).toContain('Files that could not be cleared')
+    expect(wrapper.text()).toContain('Another operation is still using the cache')
+    expect(wrapper.text()).not.toContain('[object Object]')
+})
 it('respects the preference to skip optional warnings', async () => {
     preferences.skipWarnings = true
     vi.mocked(purgeLauncherCache).mockResolvedValueOnce({
